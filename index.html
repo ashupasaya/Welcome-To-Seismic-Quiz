@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Seismic Encrypted DeFi — Quiz</title>
+  <style>
+    :root{--bg:#0f1724;--card:#0b1220;--accent:#6ee7b7;--muted:#9aa4b2;--glass:rgba(255,255,255,0.03)}
+    *{box-sizing:border-box;font-family:Inter,Segoe UI,Arial,Helvetica,sans-serif}
+    body{margin:0;min-height:100vh;background:linear-gradient(180deg,#071124 0%, #07172b 60%);color:#e6eef6;display:flex;align-items:center;justify-content:center;padding:32px}
+    .wrap{width:100%;max-width:860px}
+    header{display:flex;align-items:center;gap:16px;margin-bottom:18px}
+    .logo{width:56px;height:56px;border-radius:12px;background:linear-gradient(135deg,var(--accent),#60a5fa);display:grid;place-items:center;font-weight:700;color:#042028}
+    h1{font-size:20px;margin:0}
+    p.lead{margin:0;color:var(--muted);font-size:13px}
+    .card{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));padding:20px;border-radius:14px;box-shadow:0 6px 28px rgba(2,6,23,0.6);}
+    .question{padding:16px;border-radius:10px;background:var(--glass);margin-bottom:12px}
+    .q-title{font-weight:600;margin-bottom:10px}
+    .options{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .opt{padding:10px;border-radius:8px;background:transparent;border:1px solid rgba(160,174,192,0.06);cursor:pointer}
+    .opt input{display:none}
+    .opt.selected{border-color:var(--accent);background:rgba(110,231,183,0.07)}
+    .controls{display:flex;gap:8px;align-items:center;justify-content:space-between;margin-top:16px}
+    .btn{background:transparent;border:1px solid rgba(255,255,255,0.06);padding:8px 12px;border-radius:8px;color:inherit;cursor:pointer}
+    .btn.primary{background:linear-gradient(90deg,var(--accent),#60a5fa);color:#062024;border:0}
+    .results{margin-top:14px;padding:12px;border-radius:8px;background:rgba(255,255,255,0.02);font-size:15px}
+    .answer{display:inline-block;padding:6px 8px;border-radius:6px;background:rgba(255,255,255,0.03);margin-left:8px}
+    footer{margin-top:14px;color:var(--muted);font-size:13px}
+    .timer{font-weight:600;color:var(--accent);margin-bottom:12px;text-align:right}
+    @media (max-width:640px){.options{grid-template-columns:1fr}.header-right{display:none}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="logo">SQ</div>
+      <div>
+        <h1>Seismic — Encrypted DeFi Quiz</h1>
+        <p class="lead">10 multiple-choice questions about Seismic. You have <strong>30 seconds</strong> per question!</p>
+      </div>
+    </header>
+    <div class="card" id="app">
+      <div class="timer" id="timer">Time left: 30s</div>
+      <div id="questions"></div>
+      <div class="controls">
+        <div>
+          <button class="btn" id="prevBtn">← Previous</button>
+          <button class="btn" id="nextBtn">Next →</button>
+        </div>
+        <div>
+          <button class="btn" id="resetBtn">Reset</button>
+          <button class="btn primary" id="submitBtn">Submit Quiz</button>
+        </div>
+      </div>
+      <div id="results" class="results" style="display:none"></div>
+      <footer>
+        Tip: Save this file as <code>index.html</code> and deploy to Vercel for instant hosting.
+      </footer>
+    </div>
+  </div>
+  <audio id="alertSound" src="https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg" preload="auto"></audio>
+  <script>
+    const quiz = [
+      {q: "What is the main purpose of Seismic?", opts: ["To mint NFTs","To build encrypted DeFi protocols","To create cross-chain bridges","To provide decentralized storage"], correctIndex:1},
+      {q: "What type of blockchain is Seismic?", opts: ["Layer 0","Layer 1","Layer 2","Layer 3"], correctIndex:1},
+      {q: "What does a developer need to deploy to build on Seismic?", opts: ["Custom infrastructure","Multiple blockchains","A single Solidity contract","An off-chain node"], correctIndex:2},
+      {q: "Around which technology is Seismic’s architecture built?", opts: ["Zero-Knowledge Proofs (ZKPs)","Trusted Execution Environments (TEEs)","AI Oracles","Layer 2 Rollups"], correctIndex:1},
+      {q: "Which components did Seismic fork to build its architecture?", opts: ["Metamask, Hardhat, Remix","Solidity, Reth, Foundry","Rust, CosmWasm, Tendermint","Truffle, Ganache, Go-Ethereum"], correctIndex:1},
+      {q: "What is the main purpose of 'Encrypted Global State'?", opts: ["NFT transfers","Operating on multi-user encrypted state","Governance voting","On-chain randomness"], correctIndex:1},
+      {q: "'Encrypted Memory Access' is essential for which use cases?", opts: ["Encrypted governance","Blind auctions and shielded transfers","NFT minting","Proof-of-Stake validation"], correctIndex:1},
+      {q: "What is the key benefit of 'Encrypted Orchestration'?", opts: ["Splitting logic across multiple VMs","Enabling PoW mining","Consolidating all protocol logic within a single VM","Integrating off-chain APIs"], correctIndex:2},
+      {q: "What happens if 'Encrypted Orchestration' is missing?", opts: ["Transaction fees increase","Developers must split logic across different environments","Storage capacity decreases","Token supply doubles"], correctIndex:1},
+      {q: "What is the biggest advantage of Seismic for developers?", opts: ["Existing EVM contracts can be encrypted with minimal changes","Only new language contracts are supported","Multi-chain bridging is required","Heavy off-chain computation is necessary"], correctIndex:0}
+    ];
+
+    let current = 0;
+    const answers = Array(quiz.length).fill(null);
+    const timerEl = document.getElementById('timer');
+    let timeLeft = 30;
+    let timerInterval;
+    const alertSound = document.getElementById('alertSound');
+
+    function startTimer(){
+      clearInterval(timerInterval);
+      timeLeft = 30;
+      timerEl.textContent = `Time left: ${timeLeft}s`;
+      timerInterval = setInterval(()=>{
+        timeLeft--;
+        timerEl.textContent = `Time left: ${timeLeft}s`;
+        if(timeLeft <= 0){
+          clearInterval(timerInterval);
+          alertSound.play();
+          lockQuestion();
+        }
+      },1000);
+    }
+
+    const questionsDiv = document.getElementById('questions');
+    const resultsDiv = document.getElementById('results');
+
+    function renderQuestion(index){
+      const item = quiz[index];
+      questionsDiv.innerHTML = '';
+      const qWrap = document.createElement('div');
+      qWrap.className = 'question';
+      const title = document.createElement('div');
+      title.className = 'q-title';
+      title.textContent = `Q${index+1}. ${item.q}`;
+      qWrap.appendChild(title);
+      const opts = document.createElement('div');
+      opts.className = 'options';
+      item.opts.forEach((text, i) => {
+        const opt = document.createElement('label');
+        opt.className = 'opt' + (answers[index]===i? ' selected':'');
+        opt.innerHTML = `<input type='radio' name='q${index}'> <div>${String.fromCharCode(65+i)}. ${text}</div>`;
+        opt.addEventListener('click', ()=> selectOption(index,i,opt));
+        opts.append
